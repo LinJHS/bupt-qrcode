@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>动态二维码生成与分享</title>
+  <style>
+    :root {
+      --primary-color: #4a90e2;
+      --bg-color: #f4f4f9;
+      --card-bg: #fff;
+      --text-color: #333;
+      --border-radius: 12px;
+      --transition: 0.3s ease;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      justify-content: center;
+      align-items: start;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 500px;
+      padding: 30px;
+    }
+
+    h1 {
+      font-size: 24px;
+      color: var(--primary-color);
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    /* Tab 样式 */
+    .tabs {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #ddd;
+    }
+
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 12px 0;
+      cursor: pointer;
+      font-weight: bold;
+      transition: var(--transition);
+    }
+
+    .tab.active {
+      color: white;
+      background-color: var(--primary-color);
+      border-radius: 6px 6px 0 0;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* 文件拖拽上传区域 */
+    .drop-zone {
+      border: 2px dashed #ccc;
+      border-radius: var(--border-radius);
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .drop-zone.dragover {
+      background-color: #eef7ff;
+      border-color: var(--primary-color);
+    }
+
+    .drop-zone input[type="file"] {
+      display: none;
+    }
+
+    .drop-zone p {
+      margin: 0;
+      font-size: 14px;
+      color: #666;
+    }
+
+    /* 文本输入框 */
+    textarea {
+      width: 100%;
+      height: 100px;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: var(--border-radius);
+      resize: vertical;
+      font-size: 14px;
+      transition: var(--transition);
+    }
+
+    textarea:focus {
+      border-color: var(--primary-color);
+      outline: none;
+    }
+
+    /* 拍照按钮 */
+    .camera-input {
+      display: flex;
+      justify-content: center;
+    }
+
+    .camera-input input[type="file"] {
+      display: none;
+    }
+
+    .camera-button {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .camera-button:hover {
+      background-color: #357abd;
+    }
+
+    /* 按钮统一风格 */
+    button {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: var(--border-radius);
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: var(--transition);
+    }
+
+    button:hover {
+      background-color: #357abd;
+    }
+
+    /* 二维码画布 */
+    canvas {
+      margin-top: 20px;
+      border: 2px solid #ddd;
+      border-radius: var(--border-radius);
+    }
+
+    /* 分享链接区域 */
+    .share-link {
+      margin-top: 20px;
+      word-break: break-all;
+      font-size: 14px;
+      color: var(--primary-color);
+    }
+
+    /* 错误提示 */
+    .error {
+      color: #e74c3c;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+    <h1>动态二维码生成与分享</h1>
+
+    <!-- Tab 切换 -->
+    <div class="tabs">
+      <div class="tab active" data-tab="camera">📸 拍照上传</div>
+      <div class="tab" data-tab="upload">📤 文件上传</div>
+      <div class="tab" data-tab="text">📝 文本输入</div>
+    </div>
+
+    <!-- Tab 内容 -->
+    <!-- 拍照上传 -->
+    <div class="tab-content active" id="camera">
+      <div class="camera-input">
+        <label class="camera-button">
+      调用摄像头
+      <input type="file" id="camera-input-file" accept="image/*" capture="environment" onchange="handleCameraUpload(this.files)">
+    </label>
+      </div>
+      <p style="margin-top: 10px; font-size: 14px; color: #666;">请对准二维码进行拍摄（该功能目前存在问题，推荐使用手机拍照后通过文件上传）</p>
+    </div>
+
+    <div class="tab-content" id="upload">
+      <div class="drop-zone" id="drop-zone">
+        <p>点击或拖放图片上传</p>
+        <input type="file" id="file-input" accept="image/*" multiple />
+      </div>
+    </div>
+
+    <div class="tab-content" id="text">
+      <textarea id="qr-text" placeholder="例如：checkwork|id=...&siteId=...&classLessonId=..."></textarea>
+      <button onclick="parseText()">解析并生成二维码</button>
+    </div>
+
+    <!-- 结果展示 -->
+    <canvas id="qr-canvas" width="300" height="300"></canvas>
+
+    <!-- 分享按钮和链接 -->
+    <div style="margin-top: 20px;">
+      <button id="share-btn" disabled onclick="generateShareLink()">生成分享链接</button>
+      <div class="share-link" id="share-link-output"></div>
+    </div>
+
+    <!-- 错误信息 -->
+    <div class="error" id="error-message"></div>
+    <div id="toast"
+      style="margin-top: 10px; padding: 10px; background: #333; color: #fff; border-radius: 6px; display: none;">✅ 链接已复制
+    </div>
+  </div>
+
+  <!-- 第三方库 -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js "></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js "></script>
+
+  <script>
+    let intervalId = null;
+  let currentParams = {};
+
+  // Tab 切换逻辑
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // 处理拍照上传
+function handleCameraUpload(files) {
+  if (files.length > 0) {
+    parseQRCodeFromFile(files[0]);
+  }
+}
+
+  // 拖拽上传逻辑
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) parseQRCodeFromFile(e.dataTransfer.files[0]);
+  });
+
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) parseQRCodeFromFile(fileInput.files[0]);
+  });
+
+  // 解析文本
+  function parseText() {
+    const text = document.getElementById('qr-text').value.trim();
+    if (!text) return showError('请输入有效的 checkwork 文本。');
+    parseCheckwork(text);
+  }
+
+  // 解析二维码图片
+  function parseQRCodeFromFile(file) {
+    // const reader = new FileReader();
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = function (event) {
+      getOrientation(file, orientation => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+          // 根据 orientation 调整画布大小
+          let width = img.width, height = img.height;
+
+          if (orientation > 4 && orientation < 9) {
+            width = img.height;
+            height = img.width;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          // 根据 orientation 设置 drawImage 参数
+          switch (orientation) {
+            case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;
+            case 3: ctx.transform(-1, 0, 0, -1, width, height); break;
+            case 4: ctx.transform(1, 0, 0, -1, 0, height); break;
+            case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+            case 6: ctx.transform(0, 1, -1, 0, height, 0); break;
+            case 7: ctx.transform(0, -1, -1, 0, height, width); break;
+            case 8: ctx.transform(0, -1, 1, 0, 0, width); break;
+            default: break;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          URL.revokeObjectURL(url);
+
+          const imageData = ctx.getImageData(0, 0, width, height);
+          const qrCode = jsQR(imageData.data, width, height);
+
+          if (qrCode) {
+            parseCheckwork(qrCode.data);
+          } else {
+            showError('无法解析二维码，请确保图片清晰且为有效的二维码。');
+          }
+      });
+        // const canvas = document.createElement('canvas');
+        // const ctx = canvas.getContext('2d');
+        // canvas.width = img.width;
+        // canvas.height = img.height;
+        // ctx.drawImage(img, 0, 0);
+
+        // const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        // const qrCode = jsQR(imageData.data, img.width, img.height);
+
+        // if (qrCode) {
+        //   parseCheckwork(qrCode.data);
+        // } else {
+        //   showError('无法解析二维码，请确保图片清晰且为有效的二维码。');
+        // }
+    };
+    img.src = url;
+    // reader.readAsDataURL(file);
+  }
+
+  function getOrientation(file, callback) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const view = new DataView(e.target.result);
+      if (view.getUint16(0, false) != 0xFFD8) return callback(-2); // Not JPEG
+      const length = view.byteLength;
+      let offset = 2;
+      while (offset < length) {
+        if (view.getUint16(offset + 2, false) <= 8) return callback(-1);
+        const marker = view.getUint16(offset, false);
+        if (marker == 0xFFE1) {
+          const exifLength = view.getUint16(offset + 2, false);
+          const tiffOffset = offset + 6;
+          callback(readTag(view, tiffOffset));
+          return;
+        } else offset += view.getUint16(offset + 2, false) + 2;
+      }
+      callback(-1);
+    };
+    reader.readAsArrayBuffer(file.slice(0, 64 * 1024)); // Read first 64KB
+  }
+
+  function readTag(view, tiffOffset) {
+    const endianness = view.getUint16(tiffOffset, false) == 0x4949 ? true : false;
+    const tagsOffset = view.getUint32(tiffOffset + 4, endianness);
+    const tagCount = view.getUint16(tiffOffset + tagsOffset, endianness);
+    for (let i = 0; i < tagCount; i++) {
+      const tagOffset = tiffOffset + tagsOffset + 2 + i * 12;
+      const tagId = view.getUint16(tagOffset, endianness);
+      if (tagId == 0x0112) { // Orientation
+        return view.getUint16(tagOffset + 8, endianness);
+      }
+    }
+    return -1;
+  }
+
+  // 提取参数并开始生成二维码
+  function parseCheckwork(content) {
+    const match = content.match(/checkwork\|id=(.*?)&siteId=(.*?)&createTime=(.*)&classLessonId=(.*?)($|&)/i);
+    if (!match) return showError('未找到合法的 checkwork 字符串。');
+
+    const [_, id, siteId, createTime, classLessonId] = match;
+    currentParams = { id, siteId, classLessonId };
+
+    document.getElementById('share-btn').disabled = false;
+    startDynamicQRCodeGeneration(`checkwork|id=${id}&siteId=${siteId}&createTime=${createTime}&classLessonId=${classLessonId}`);
+    clearError();
+  }
+
+  // 开始动态生成二维码
+  function startDynamicQRCodeGeneration(baseContent) {
+    // 解析 baseContent 中的 id, siteId, classLessonId
+    const match = baseContent.match(/checkwork\|id=(.*?)&siteId=(.*?)&createTime=(.*)?&classLessonId=(.*?)($|&)/i);
+    if (!match) return showError('未找到合法的 checkwork 字符串。');
+
+    const [_, id, siteId, createTime, classLessonId] = match;
+    currentParams = { id, siteId, classLessonId };
+
+    // 清除之前的定时器
+    if (intervalId) {
+      clearInterval(intervalId);
+    }
+
+    // 立即生成一次
+    generateDynamicQRCode();
+
+    // 每隔 3 秒重新生成
+    intervalId = setInterval(() => {
+      generateDynamicQRCode();
+    }, 3000); // 3秒刷新一次
+  }
+
+  // 生成带时间戳的二维码内容并绘制到 canvas
+  function generateDynamicQRCode() {
+    if (!currentParams) return;
+
+    const { id, siteId, classLessonId } = currentParams;
+
+    // 获取当前时间并格式化为 ISO 格式（保留毫秒部分）
+    const now = new Date();
+    const currentTimeAdd8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    const createTime = currentTimeAdd8.toISOString().replace('Z', ''); // 输出如：2025-02-28T14:43:33.308Z
+
+    // 构造完整的二维码内容
+    const content = `checkwork|id=${id}&siteId=${siteId}&createTime=${createTime}&classLessonId=${classLessonId}`;
+
+    const canvas = document.getElementById('qr-canvas');
+    QRCode.toCanvas(canvas, content, { width: 300 }, function (error) {
+      if (error) {
+        console.error(error);
+        showError('生成二维码失败，请稍后重试。');
+      }
+    });
+  }
+
+  // 生成分享链接
+  function generateShareLink() {
+    const { id, siteId, classLessonId } = currentParams;
+    const shareUrl = `https://qrcode.linjhs.top/?id=${id}&siteId=${siteId}&classLessonId=${classLessonId}`;
+    
+    // 显示链接
+    const output = document.getElementById('share-link-output');
+    output.textContent = shareUrl;
+
+    // 使用 Clipboard API 复制到剪贴板
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      // 提示用户
+      showToast('✅ 链接已复制到剪贴板');
+    }).catch(err => {
+      console.error('复制失败:', err);
+      showToast('❌ 复制失败，请手动复制。');
+    });
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.style.display = 'block';
+    setTimeout(() => {
+      toast.style.display = 'none';
+    }, 2000);
+  }
+
+  // 页面加载时检查 URL 参数
+  window.onload = function () {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('id') && urlParams.has('siteId') && urlParams.has('classLessonId')) {
+      const content = `checkwork|id=${urlParams.get('id')}&siteId=${urlParams.get('siteId')}&createTime=linjhs&classLessonId=${urlParams.get('classLessonId')}`;
+      parseCheckwork(content);
+    }
+  };
+
+  // 错误提示
+  function showError(msg) {
+    document.getElementById('error-message').textContent = msg;
+  }
+
+  function clearError() {
+    document.getElementById('error-message').textContent = '';
+  }
+  </script>
+
+</body>
+
+</html>
